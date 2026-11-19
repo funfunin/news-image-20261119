@@ -1,21 +1,43 @@
-// A news-image-daily entry (Node 22, standard library only): its image is
-// the entry.png beside this file, and the program copies it to
-// /output/entry.png. The gate takes a whole PNG or JPEG of at most 1 MiB
-// and 1024 by 1024 pixels, and the judge sees exactly the bytes copied.
+// news-image-20261119 — the program that hands this entry in.
 //
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
-//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// Beside this file sits entry.png, the finished front page for
+// Thursday 19 November 2026. All this program does is carry that
+// image into the folder the grader collects, after checking it is
+// a real PNG and small enough for the competition's size gate.
+// It runs on Node 22 and uses nothing but the standard library.
 
-import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const source = new URL('./entry.png', import.meta.url);
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
-const target = join(outDir, 'entry.png');
+// The competition refuses any image bigger than one mebibyte.
+const MAX_IMAGE_BYTES = 1048576;
 
-// The gate refuses anything over 1 MiB, so fail loudly instead of
-// submitting an image the grader would reject.
-if (!existsSync(source)) throw new Error('entry.png is missing beside main.ts');
-if (statSync(source).size > 1024 * 1024) throw new Error('entry.png is over the 1 MiB gate');
-mkdirSync(outDir, { recursive: true });
-copyFileSync(source, target);
+// The eight bytes that open every PNG file.
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+const folderHere = fileURLToPath(new URL('.', import.meta.url));
+const imagePath = join(folderHere, 'entry.png');
+const outputFolder = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const imageTarget = join(outputFolder, 'entry.png');
+
+if (!existsSync(imagePath)) {
+  throw new Error(`front page image not found: ${imagePath}`);
+}
+
+const imageBytes = readFileSync(imagePath);
+
+if (imageBytes.length > MAX_IMAGE_BYTES) {
+  throw new Error(
+    `front page image is ${imageBytes.length} bytes, over the ${MAX_IMAGE_BYTES}-byte limit`,
+  );
+}
+
+if (!imageBytes.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)) {
+  throw new Error('front page image does not begin with the PNG signature');
+}
+
+mkdirSync(outputFolder, { recursive: true });
+copyFileSync(imagePath, imageTarget);
+
+console.log(`wrote ${imageTarget} (${imageBytes.length} bytes)`);
